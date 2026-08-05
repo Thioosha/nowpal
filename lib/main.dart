@@ -25,8 +25,104 @@ class NowPalApp extends StatelessWidget {
       child: MaterialApp(
         title: 'NowPal',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(primarySwatch: Colors.deepPurple, useMaterial3: true),
+        theme: _buildTheme(),
         home: const MainShell(),
+      ),
+    );
+  }
+
+  ThemeData _buildTheme() {
+    const primary = Color(0xFF7C5CBF);
+    const primaryLight = Color(0xFFEDE7F6);
+    const white = Color(0xFFFFFFFF);
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primary,
+        primary: primary,
+        secondary: Color(0xFFB39DDB),
+        surface: white,
+        background: Color(0xFFF8F5FF),
+      ),
+      scaffoldBackgroundColor: const Color(0xFFF8F5FF),
+      fontFamily: 'Nunito',
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: Color(0xFF3D2B6B),
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        iconTheme: IconThemeData(color: Color(0xFF3D2B6B)),
+      ),
+      cardTheme: CardThemeData(
+        color: white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Color(0xFFEDE7F6), width: 1.5),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: const BorderSide(color: Color(0xFF7C5CBF), width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFEDE7F6), width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFEDE7F6), width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF7C5CBF), width: 2),
+        ),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: white,
+        selectedItemColor: Color(0xFF7C5CBF),
+        unselectedItemColor: Color(0xFFB0A0CC),
+        elevation: 0,
+        type: BottomNavigationBarType.fixed,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: MaterialStateProperty.resolveWith(
+          (states) => states.contains(MaterialState.selected)
+              ? primary
+              : Colors.grey[300],
+        ),
+        trackColor: MaterialStateProperty.resolveWith(
+          (states) => states.contains(MaterialState.selected)
+              ? primaryLight
+              : Colors.grey[200],
+        ),
       ),
     );
   }
