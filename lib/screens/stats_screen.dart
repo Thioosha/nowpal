@@ -5,10 +5,10 @@ class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
 
   @override
-  State<StatsScreen> createState() => _StatsScreenState();
+  State<StatsScreen> createState() => StatsScreenState();
 }
 
-class _StatsScreenState extends State<StatsScreen> {
+class StatsScreenState extends State<StatsScreen> {
   List<String> _moodHistory = [];
   List<String> _focusSessions = [];
   bool _isLoading = true;
@@ -27,6 +27,8 @@ class _StatsScreenState extends State<StatsScreen> {
       _isLoading = false;
     });
   }
+
+  Future<void> loadStats() => _loadStats();
 
   int get _totalFocusMinutes {
     int total = 0;

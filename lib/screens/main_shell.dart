@@ -14,17 +14,22 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
+  final GlobalKey<HomeScreenState> _homeKey = GlobalKey<HomeScreenState>();
+  final GlobalKey<StatsScreenState> _statsKey = GlobalKey<StatsScreenState>();
+
   void _switchTab(int index) {
     setState(() => _currentIndex = index);
+    if (index == 0) _homeKey.currentState?.loadData();
+    if (index == 3) _statsKey.currentState?.loadStats();
   }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
-      HomeScreen(onSwitchTab: _switchTab),
+      HomeScreen(key: _homeKey, onSwitchTab: _switchTab),
       const FocusScreen(),
       const TodoScreen(),
-      const StatsScreen(),
+      StatsScreen(key: _statsKey),
     ];
 
     return Scaffold(
@@ -46,7 +51,11 @@ class _MainShellState extends State<MainShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            setState(() => _currentIndex = index);
+            if (index == 0) _homeKey.currentState?.loadData();
+            if (index == 3) _statsKey.currentState?.loadStats();
+          },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           selectedItemColor: const Color(0xFF7C5CBF),

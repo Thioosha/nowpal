@@ -9,10 +9,10 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.onSwitchTab});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _todayMood;
   bool _isLoading = true;
   int _streak = 0;
@@ -23,7 +23,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadData();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -70,6 +84,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoading = false;
     });
   }
+
+  Future<void> loadData() => _loadData();
 
   Future<void> _saveMood(String mood) async {
     final prefs = await SharedPreferences.getInstance();
