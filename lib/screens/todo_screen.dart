@@ -28,81 +28,236 @@ class _TodoScreenState extends State<TodoScreen> {
   Widget build(BuildContext context) {
     final todoProvider = context.watch<TodoProvider>();
     final todos = todoProvider.todos;
+    final pending = todos.where((t) => !t.isDone).toList();
+    final done = todos.where((t) => t.isDone).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Todo')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a task...',
-                      border: OutlineInputBorder(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: const InputDecoration(
+                        hintText: 'Add a task...',
+                        prefixIcon: Icon(Icons.add_task_rounded),
+                      ),
+                      onSubmitted: (_) => _addTodo(),
                     ),
-                    onSubmitted: (_) => _addTodo(),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.add_circle, size: 32),
-                  onPressed: _addTodo,
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C5CBF),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: _addTodo,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: todos.isEmpty
-                ? const Center(child: Text('No tasks yet. Add one above.'))
-                : ListView.builder(
-                    itemCount: todos.length,
-                    itemBuilder: (context, index) {
-                      final todo = todos[index];
-                      final isCurrent = todoProvider.currentTask?.id == todo.id;
-
-                      return ListTile(
-                        leading: Checkbox(
-                          value: todo.isDone,
-                          onChanged: (_) => todoProvider.toggleDone(todo.id),
-                        ),
-                        title: Text(
-                          todo.title,
-                          style: TextStyle(
-                            decoration: todo.isDone
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: todo.isDone ? Colors.grey : null,
+            Expanded(
+              child: todos.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF8F5FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Text('📝', style: TextStyle(fontSize: 32)),
+                            ),
                           ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                isCurrent ? Icons.star : Icons.star_border,
-                                color: isCurrent ? Colors.amber : Colors.grey,
+                          const SizedBox(height: 12),
+                          Text(
+                            'No tasks yet',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Add one above to get started',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      children: [
+                        if (pending.isNotEmpty) ...[
+                          _SectionLabel(text: 'To do (${pending.length})'),
+                          const SizedBox(height: 8),
+                          ...pending.map(
+                            (todo) => _TodoCard(
+                              todo: todo,
+                              isCurrent:
+                                  todoProvider.currentTask?.id == todo.id,
+                              onToggle: () => todoProvider.toggleDone(todo.id),
+                              onStar: () => todoProvider.setCurrentTask(
+                                todoProvider.currentTask?.id == todo.id
+                                    ? null
+                                    : todo.id,
                               ),
-                              onPressed: () {
-                                todoProvider.setCurrentTask(
-                                  isCurrent ? null : todo.id,
-                                );
-                              },
+                              onDelete: () => todoProvider.deleteTodo(todo.id),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () => todoProvider.deleteTodo(todo.id),
+                          ),
+                        ],
+                        if (done.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _SectionLabel(text: 'Done (${done.length})'),
+                          const SizedBox(height: 8),
+                          ...done.map(
+                            (todo) => _TodoCard(
+                              todo: todo,
+                              isCurrent: false,
+                              onToggle: () => todoProvider.toggleDone(todo.id),
+                              onStar: () {},
+                              onDelete: () => todoProvider.deleteTodo(todo.id),
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey[500],
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+class _TodoCard extends StatelessWidget {
+  final dynamic todo;
+  final bool isCurrent;
+  final VoidCallback onToggle;
+  final VoidCallback onStar;
+  final VoidCallback onDelete;
+
+  const _TodoCard({
+    required this.todo,
+    required this.isCurrent,
+    required this.onToggle,
+    required this.onStar,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: isCurrent
+                ? const Color(0xFF7C5CBF)
+                : const Color(0xFFEDE7F6),
+            width: isCurrent ? 1.5 : 1.2,
           ),
-        ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: onToggle,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: todo.isDone ? const Color(0xFF7C5CBF) : Colors.white,
+                    border: Border.all(
+                      color: todo.isDone
+                          ? const Color(0xFF7C5CBF)
+                          : const Color(0xFFB0A0CC),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: todo.isDone
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  todo.title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    decoration: todo.isDone ? TextDecoration.lineThrough : null,
+                    color: todo.isDone
+                        ? Colors.grey[400]
+                        : const Color(0xFF3D2B6B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (!todo.isDone)
+                IconButton(
+                  icon: Icon(
+                    isCurrent ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: isCurrent ? Colors.amber : Colors.grey[400],
+                  ),
+                  onPressed: onStar,
+                ),
+              IconButton(
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: Colors.grey[400],
+                ),
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
