@@ -17,7 +17,7 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   int _focusMinutes = 25;
   int _breakMinutes = 5;
 
-  int _secondsLeft = 25 * 60;
+  int _secondsLeft = 10;
   bool _isRunning = false;
   bool _isBreak = false;
   bool _strictMode = false;
