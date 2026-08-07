@@ -1,10 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../providers/todo_provider.dart';
-import 'package:android_intent_plus/android_intent.dart';
+import 'active_session_screen.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -13,172 +10,58 @@ class FocusScreen extends StatefulWidget {
   State<FocusScreen> createState() => _FocusScreenState();
 }
 
-class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
+class _FocusScreenState extends State<FocusScreen> {
   int _focusMinutes = 25;
   int _breakMinutes = 5;
-
-  int _secondsLeft = 10;
-  bool _isRunning = false;
-  bool _isBreak = false;
   bool _strictMode = false;
+  final List<int> _presets = [15, 25, 45, 60];
 
-  Timer? _timer;
-  StreamSubscription? _overlaySubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _listenToOverlay();
-  }
-
-  void _listenToOverlay() {
-    try {
-      _overlaySubscription = FlutterOverlayWindow.overlayListener.listen((
-        event,
-      ) async {
-        debugPrint('OVERLAY EVENT RECEIVED: $event');
-        if (event == "return_to_app") {
-          debugPrint('LAUNCHING INTENT...');
-          final intent = AndroidIntent(
-            action: 'action_main',
-            category: 'category_launcher',
-            package: 'com.example.nowpal',
-            flags: [268435456, 67108864],
-          );
-          await intent.launch();
-          debugPrint('INTENT LAUNCHED');
-        }
-      });
-    } catch (e) {
-      debugPrint('Overlay listener already active: $e');
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    debugPrint(
-      'LIFECYCLE STATE: $state | strict: $_strictMode | running: $_isRunning | break: $_isBreak',
+  void _pickCustomDuration() async {
+    final controller = TextEditingController(text: '$_focusMinutes');
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Custom duration'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(suffixText: 'minutes'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text);
+              if (value != null && value > 0) {
+                Navigator.pop(context, value);
+              }
+            },
+            child: const Text('Set'),
+          ),
+        ],
+      ),
     );
-
-    if (state == AppLifecycleState.paused &&
-        _strictMode &&
-        _isRunning &&
-        !_isBreak) {
-      // pause the timer itself, not just the countdown display
-      _timer?.cancel();
-
-      final permitted = await FlutterOverlayWindow.isPermissionGranted();
-      debugPrint('OVERLAY PERMISSION GRANTED: $permitted');
-      try {
-        await FlutterOverlayWindow.showOverlay(
-          height: WindowSize.matchParent,
-          width: WindowSize.matchParent,
-          alignment: OverlayAlignment.center,
-          flag: OverlayFlag.focusPointer,
-          enableDrag: false,
-        );
-        debugPrint('SHOW OVERLAY CALLED — no error thrown');
-      } catch (e) {
-        debugPrint('SHOW OVERLAY ERROR: $e');
-      }
-    }
-
-    if (state == AppLifecycleState.resumed &&
-        _strictMode &&
-        _isRunning &&
-        !_isBreak) {
-      // user came back — resume the countdown
-      _startTimer();
+    if (result != null) {
+      setState(() => _focusMinutes = result);
     }
   }
 
-  Future<bool> _requestOverlayPermission() async {
-    final status = await FlutterOverlayWindow.isPermissionGranted();
-    if (!status) {
-      final granted = await FlutterOverlayWindow.requestPermission();
-      return granted ?? false;
-    }
-    return true;
-  }
-
-  void _toggleStrictMode(bool value) async {
-    if (value) {
-      final granted = await _requestOverlayPermission();
-      if (!granted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Overlay permission needed for strict mode'),
-            ),
-          );
-        }
-        return;
-      }
-    }
-    setState(() => _strictMode = value);
-  }
-
-  void _startTimer() {
-    _timer
-        ?.cancel(); // NEW — prevent double timers if called while one's active
-    setState(() => _isRunning = true);
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsLeft > 0) {
-        setState(() {
-          _secondsLeft--;
-        });
-      } else {
-        _switchMode();
-      }
-    });
-  }
-
-  void _pauseTimer() {
-    _timer?.cancel();
-    setState(() => _isRunning = false);
-  }
-
-  void _resetTimer() {
-    _timer?.cancel();
-    setState(() {
-      _isRunning = false;
-      _isBreak = false;
-      _secondsLeft = _focusMinutes * 60;
-    });
-  }
-
-  void _switchMode() async {
-    _timer?.cancel();
-
-    if (!_isBreak) {
-      final prefs = await SharedPreferences.getInstance();
-      final sessionsRaw = prefs.getStringList('focus_sessions') ?? [];
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      sessionsRaw.add('$today|$_focusMinutes');
-      await prefs.setStringList('focus_sessions', sessionsRaw);
-    }
-
-    setState(() {
-      _isBreak = !_isBreak;
-      _secondsLeft = _isBreak ? _breakMinutes * 60 : _focusMinutes * 60;
-    });
-    _startTimer();
-  }
-
-  String _formatTime(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _overlaySubscription?.cancel();
-    _timer?.cancel();
-    super.dispose();
+  void _startSession() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActiveSessionScreen(
+          focusMinutes: _focusMinutes,
+          breakMinutes: _breakMinutes,
+          strictMode: _strictMode,
+        ),
+      ),
+    );
   }
 
   @override
@@ -186,66 +69,188 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     final currentTask = context.watch<TodoProvider>().currentTask;
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Focus')),
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (currentTask != null) ...[
-                Text(
-                  'Working on:',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            // Focus now card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.bolt_rounded,
+                          color: const Color(0xFF7C5CBF),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Focus now',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF3D2B6B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (currentTask != null)
+                      Text(
+                        'Working on: ${currentTask.title}',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // duration chips
+                    Text(
+                      'Duration',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ..._presets.map(
+                          (min) => _DurationChip(
+                            label: '${min}m',
+                            selected: _focusMinutes == min,
+                            onTap: () => setState(() => _focusMinutes = min),
+                          ),
+                        ),
+                        _DurationChip(
+                          label: _presets.contains(_focusMinutes)
+                              ? 'Custom'
+                              : '${_focusMinutes}m',
+                          selected: !_presets.contains(_focusMinutes),
+                          onTap: _pickCustomDuration,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // strict mode
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F5FF),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: SwitchListTile(
+                        title: const Text(
+                          'Strict mode',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Locked overlay if you leave the app',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        value: _strictMode,
+                        onChanged: (v) => setState(() => _strictMode = v),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _startSession,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Start focusing'),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  currentTask.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+            Text(
+              'Planned sessions',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8F5FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text('📅', style: TextStyle(fontSize: 28)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No sessions planned yet',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                      ),
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-              ],
-              Text(
-                _isBreak ? 'Break time 🌿' : 'Focus time 🎯',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                _formatTime(_secondsLeft),
-                style: const TextStyle(
-                  fontSize: 64,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: _isRunning ? _pauseTimer : _startTimer,
-                    child: Text(_isRunning ? 'Pause' : 'Start'),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton(
-                    onPressed: _resetTimer,
-                    child: const Text('Reset'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SwitchListTile(
-                title: const Text('Strict mode'),
-                subtitle: const Text(
-                  'Overlay warning if you leave during focus',
-                ),
-                value: _strictMode,
-                onChanged: _toggleStrictMode,
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DurationChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DurationChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF7C5CBF) : const Color(0xFFF8F5FF),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF7C5CBF),
           ),
         ),
       ),
