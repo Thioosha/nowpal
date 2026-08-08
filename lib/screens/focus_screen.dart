@@ -21,6 +21,23 @@ class _FocusScreenState extends State<FocusScreen> {
   bool _strictMode = false;
   final List<int> _presets = [15, 25, 45, 60];
 
+  void _startPlannedSession(PlannedSession session) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActiveSessionScreen(
+          focusMinutes: session.durationMinutes,
+          breakMinutes: 5,
+          strictMode: session.strictMode,
+        ),
+      ),
+    );
+    // when we return from the session, mark it completed
+    if (mounted) {
+      context.read<PlannedSessionProvider>().markCompleted(session.id);
+    }
+  }
+
   void _pickCustomDuration() async {
     final controller = TextEditingController(text: '$_focusMinutes');
     final result = await showDialog<int>(
@@ -56,11 +73,16 @@ class _FocusScreenState extends State<FocusScreen> {
     }
   }
 
-  void _openPlanDialog() async {
-    DateTime selectedDate = DateTime.now();
-    TimeOfDay selectedTime = TimeOfDay.now();
-    int duration = 25;
-    bool strict = false;
+  void _openPlanDialog({PlannedSession? existing}) async {
+    DateTime selectedDate = existing?.dateTime ?? DateTime.now();
+    TimeOfDay selectedTime = existing != null
+        ? TimeOfDay(
+            hour: existing.dateTime.hour,
+            minute: existing.dateTime.minute,
+          )
+        : TimeOfDay.now();
+    int duration = existing?.durationMinutes ?? 25;
+    bool strict = existing?.strictMode ?? false;
     final presets = [15, 25, 45, 60];
 
     await showDialog(
@@ -72,7 +94,7 @@ class _FocusScreenState extends State<FocusScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              title: const Text('Plan a session'),
+              title: Text(existing != null ? 'Edit session' : 'Plan a session'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -219,13 +241,27 @@ class _FocusScreenState extends State<FocusScreen> {
                     );
 
                     final session = PlannedSession(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      id:
+                          existing?.id ??
+                          DateTime.now().millisecondsSinceEpoch.toString(),
                       dateTime: dateTime,
                       durationMinutes: duration,
                       strictMode: strict,
+                      completed: false,
                     );
 
-                    context.read<PlannedSessionProvider>().addSession(session);
+                    if (existing != null) {
+                      context.read<PlannedSessionProvider>().updateSession(
+                        session,
+                      );
+                      await NotificationService.cancelReminder(
+                        existing.id.hashCode,
+                      );
+                    } else {
+                      context.read<PlannedSessionProvider>().addSession(
+                        session,
+                      );
+                    }
 
                     final alarmId = session.id.hashCode;
 
@@ -242,12 +278,14 @@ class _FocusScreenState extends State<FocusScreen> {
                         scheduledTime: dateTime,
                         title: 'Time to focus! 🎯',
                         body: 'Your $duration min session is starting now',
+                        payload:
+                            '$duration|5|$strict', // NEW: focusMin|breakMin|strict
                       );
                     }
 
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text('Plan it'),
+                  child: Text(existing != null ? 'Save changes' : 'Plan it'),
                 ),
               ],
             );
@@ -424,8 +462,24 @@ class _FocusScreenState extends State<FocusScreen> {
             const SizedBox(height: 12),
             Consumer<PlannedSessionProvider>(
               builder: (context, provider, _) {
-                final upcoming = provider.upcoming;
-                if (upcoming.isEmpty) {
+                final now = DateTime.now();
+                final graceWindow = const Duration(minutes: 2);
+                final upcoming = provider.sessions
+                    .where(
+                      (s) =>
+                          !s.completed &&
+                          s.dateTime.isAfter(now.subtract(graceWindow)),
+                    )
+                    .toList();
+                final missed = provider.sessions
+                    .where(
+                      (s) =>
+                          !s.completed &&
+                          s.dateTime.isBefore(now.subtract(graceWindow)),
+                    )
+                    .toList();
+
+                if (upcoming.isEmpty && missed.isEmpty) {
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -460,57 +514,44 @@ class _FocusScreenState extends State<FocusScreen> {
                     ),
                   );
                 }
+
                 return Column(
-                  children: upcoming.map((session) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: Card(
-                        child: ListTile(
-                          leading: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF8F5FF),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.event_rounded,
-                                color: Color(0xFF7C5CBF),
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            DateFormat(
-                              'EEE, MMM d • HH:mm',
-                            ).format(session.dateTime),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${session.durationMinutes}min'
-                            '${session.strictMode ? ' • Strict mode' : ''}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          trailing: IconButton(
-                            icon: Icon(
-                              Icons.close_rounded,
-                              size: 18,
-                              color: Colors.grey[400],
-                            ),
-                            onPressed: () => context
-                                .read<PlannedSessionProvider>()
-                                .deleteSession(session.id),
-                          ),
+                  children: [
+                    ...upcoming.map(
+                      (s) => _PlannedSessionCard(
+                        session: s,
+                        isMissed: false,
+                        onStart: () => _startPlannedSession(s),
+                        onEdit: () => _openPlanDialog(existing: s),
+                        onDelete: () => context
+                            .read<PlannedSessionProvider>()
+                            .deleteSession(s.id),
+                      ),
+                    ),
+                    if (missed.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Missed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[400],
                         ),
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(height: 8),
+                      ...missed.map(
+                        (s) => _PlannedSessionCard(
+                          session: s,
+                          isMissed: true,
+                          onStart: () => _startPlannedSession(s),
+                          onEdit: () => _openPlanDialog(existing: s),
+                          onDelete: () => context
+                              .read<PlannedSessionProvider>()
+                              .deleteSession(s.id),
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               },
             ),
@@ -548,6 +589,99 @@ class _DurationChip extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: selected ? Colors.white : const Color(0xFF7C5CBF),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlannedSessionCard extends StatelessWidget {
+  final PlannedSession session;
+  final bool isMissed;
+  final VoidCallback onStart;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _PlannedSessionCard({
+    required this.session,
+    required this.isMissed,
+    required this.onStart,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isMissed ? Colors.grey[200] : const Color(0xFFF8F5FF),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isMissed ? Icons.event_busy_rounded : Icons.event_rounded,
+                  color: isMissed ? Colors.grey[400] : const Color(0xFF7C5CBF),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('EEE, MMM d • HH:mm').format(session.dateTime),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: isMissed
+                            ? Colors.grey[500]
+                            : const Color(0xFF3D2B6B),
+                        decoration: isMissed
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    Text(
+                      '${session.durationMinutes}min'
+                      '${session.strictMode ? ' • Strict mode' : ''}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.play_circle_fill_rounded,
+                  color: Color(0xFF7C5CBF),
+                ),
+                onPressed: onStart,
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.edit_rounded,
+                  size: 18,
+                  color: Colors.grey[400],
+                ),
+                onPressed: onEdit,
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: Colors.grey[400],
+                ),
+                onPressed: onDelete,
+              ),
+            ],
           ),
         ),
       ),

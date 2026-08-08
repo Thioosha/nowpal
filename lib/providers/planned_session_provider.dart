@@ -24,6 +24,7 @@ class PlannedSessionProvider extends ChangeNotifier {
       _sessions = decoded.map((e) => PlannedSession.fromJson(e)).toList();
       notifyListeners();
     }
+    pruneOldMissed(); // NEW
   }
 
   Future<void> _save() async {
@@ -42,5 +43,28 @@ class PlannedSessionProvider extends ChangeNotifier {
     _sessions.removeWhere((s) => s.id == id);
     _save();
     notifyListeners();
+  }
+
+  void markCompleted(String id) {
+    final session = _sessions.firstWhere((s) => s.id == id);
+    session.completed = true;
+    _save();
+    notifyListeners();
+  }
+
+  void pruneOldMissed() {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
+    _sessions.removeWhere((s) => !s.completed && s.dateTime.isBefore(cutoff));
+    _save();
+    notifyListeners();
+  }
+
+  void updateSession(PlannedSession updated) {
+    final index = _sessions.indexWhere((s) => s.id == updated.id);
+    if (index != -1) {
+      _sessions[index] = updated;
+      _save();
+      notifyListeners();
+    }
   }
 }

@@ -6,15 +6,22 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  static Future<void> init() async {
+  static Future<void> init({
+    required void Function(String? payload) onNotificationTap,
+  }) async {
     tzdata.initializeTimeZones();
-    print('🎤 LOCAL TIMEZONE: ${tz.local}');
 
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
     const settings = InitializationSettings(android: androidSettings);
-    await _plugin.initialize(settings);
+
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (response) {
+        onNotificationTap(response.payload);
+      },
+    );
 
     final AndroidFlutterLocalNotificationsPlugin? androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
@@ -22,10 +29,8 @@ class NotificationService {
         >();
 
     if (androidPlugin != null) {
-      final notifGranted = await androidPlugin.requestNotificationsPermission();
-      print('❤️ NOTIFICATION PERMISSION GRANTED: $notifGranted');
-      final exactGranted = await androidPlugin.requestExactAlarmsPermission();
-      print('🤍 EXACT ALARM PERMISSION GRANTED: $exactGranted');
+      await androidPlugin.requestNotificationsPermission();
+      await androidPlugin.requestExactAlarmsPermission();
     }
   }
 
@@ -34,14 +39,9 @@ class NotificationService {
     required DateTime scheduledTime,
     required String title,
     required String body,
+    required String payload, // NEW
   }) async {
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
-    print('📆SCHEDULING FOR: $tzTime | TZ NOW: ${tz.TZDateTime.now(tz.local)}');
-
-    if (tzTime.isBefore(tz.TZDateTime.now(tz.local))) {
-      print('⚠️ WARNING: scheduled time is in the PAST relative to tz.now()');
-    }
-
     try {
       await _plugin.zonedSchedule(
         id,
@@ -60,10 +60,10 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.alarmClock,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload, // NEW
       );
-      print('✨NOTIFICATION SCHEDULED SUCCESSFULLY');
     } catch (e) {
-      print('😔NOTIFICATION SCHEDULE ERROR: $e');
+      print('NOTIFICATION SCHEDULE ERROR: $e');
     }
   }
 

@@ -2,17 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'screens/main_shell.dart';
+import 'screens/active_session_screen.dart';
 import 'providers/todo_provider.dart';
 import 'providers/planned_session_provider.dart';
 import 'widgets/overlay_widget.dart';
 import 'services/notification_service.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AndroidAlarmManager.initialize();
-  await NotificationService.init();
-  // await NotificationService.showTestNotification(); // TEMP TEST
-  // await NotificationService.cancelAll(); // TEMP: clear stale test schedules
+  await NotificationService.init(
+    onNotificationTap: (payload) {
+      if (payload == null) return;
+      final parts = payload.split('|'); // "focusMinutes|breakMinutes|strict"
+      final focusMin = int.tryParse(parts[0]) ?? 25;
+      final breakMin = int.tryParse(parts[1]) ?? 5;
+      final strict = parts[2] == 'true';
+
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => ActiveSessionScreen(
+            focusMinutes: focusMin,
+            breakMinutes: breakMin,
+            strictMode: strict,
+          ),
+        ),
+      );
+    },
+  );
+  // await NotificationService.cancelAll(); // TEMP: clear old stale schedules again
   runApp(const NowPalApp());
 }
 
@@ -34,6 +54,7 @@ class NowPalApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PlannedSessionProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey, // NEW
         title: 'NowPal',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
