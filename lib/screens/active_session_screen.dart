@@ -24,6 +24,7 @@ class ActiveSessionScreen extends StatefulWidget {
 class _ActiveSessionScreenState extends State<ActiveSessionScreen>
     with WidgetsBindingObserver {
   late int _secondsLeft;
+  int _secondsFocused = 0;
   bool _isRunning = false;
   bool _isBreak = false;
 
@@ -77,7 +78,10 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsLeft > 0) {
-        setState(() => _secondsLeft--);
+        setState(() {
+          _secondsLeft--;
+          if (!_isBreak) _secondsFocused++; // NEW
+        });
       } else {
         _switchMode();
       }
@@ -96,8 +100,10 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
       final prefs = await SharedPreferences.getInstance();
       final sessionsRaw = prefs.getStringList('focus_sessions') ?? [];
       final today = DateTime.now().toIso8601String().substring(0, 10);
-      sessionsRaw.add('$today|${widget.focusMinutes}');
+      final minutesFocused = (_secondsFocused / 60).round();
+      sessionsRaw.add('$today|$minutesFocused');
       await prefs.setStringList('focus_sessions', sessionsRaw);
+      _secondsFocused = 0; // reset after logging
     }
 
     setState(() {
@@ -115,9 +121,19 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  void _endSession() {
+  void _endSession() async {
     _timer?.cancel();
-    Navigator.pop(context);
+
+    if (_secondsFocused > 0 && !_isBreak) {
+      final prefs = await SharedPreferences.getInstance();
+      final sessionsRaw = prefs.getStringList('focus_sessions') ?? [];
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final minutesFocused = (_secondsFocused / 60).round();
+      sessionsRaw.add('$today|$minutesFocused');
+      await prefs.setStringList('focus_sessions', sessionsRaw);
+    }
+
+    if (mounted) Navigator.pop(context);
   }
 
   @override
