@@ -65,4 +65,20 @@ class TodoProvider extends ChangeNotifier {
     _currentTaskId = id;
     notifyListeners();
   }
+
+  void reorderTodos(int oldIndex, int newIndex, List<String> pendingIds) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final movedId = pendingIds.removeAt(oldIndex);
+    pendingIds.insert(newIndex, movedId);
+
+    // rebuild _todos so pending order matches, done items stay at the end untouched
+    final doneItems = _todos.where((t) => t.isDone).toList();
+    final reorderedPending = pendingIds
+        .map((id) => _todos.firstWhere((t) => t.id == id))
+        .toList();
+
+    _todos = [...reorderedPending, ...doneItems];
+    _saveTodos();
+    notifyListeners();
+  }
 }

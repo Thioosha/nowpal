@@ -110,19 +110,42 @@ class _TodoScreenState extends State<TodoScreen> {
                         if (pending.isNotEmpty) ...[
                           _SectionLabel(text: 'To do (${pending.length})'),
                           const SizedBox(height: 8),
-                          ...pending.map(
-                            (todo) => _TodoCard(
-                              todo: todo,
-                              isCurrent:
-                                  todoProvider.currentTask?.id == todo.id,
-                              onToggle: () => todoProvider.toggleDone(todo.id),
-                              onStar: () => todoProvider.setCurrentTask(
-                                todoProvider.currentTask?.id == todo.id
-                                    ? null
-                                    : todo.id,
-                              ),
-                              onDelete: () => todoProvider.deleteTodo(todo.id),
-                            ),
+                          ReorderableListView(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            proxyDecorator: (child, index, animation) {
+                              return Material(
+                                color: Colors.transparent,
+                                child: child,
+                              );
+                            },
+                            onReorder: (oldIndex, newIndex) {
+                              final ids = pending.map((t) => t.id).toList();
+                              todoProvider.reorderTodos(
+                                oldIndex,
+                                newIndex,
+                                ids,
+                              );
+                            },
+                            children: pending
+                                .map(
+                                  (todo) => _TodoCard(
+                                    key: ValueKey(todo.id),
+                                    todo: todo,
+                                    isCurrent:
+                                        todoProvider.currentTask?.id == todo.id,
+                                    onToggle: () =>
+                                        todoProvider.toggleDone(todo.id),
+                                    onStar: () => todoProvider.setCurrentTask(
+                                      todoProvider.currentTask?.id == todo.id
+                                          ? null
+                                          : todo.id,
+                                    ),
+                                    onDelete: () =>
+                                        todoProvider.deleteTodo(todo.id),
+                                  ),
+                                )
+                                .toList(),
                           ),
                         ],
                         if (done.isNotEmpty) ...[
@@ -175,6 +198,7 @@ class _TodoCard extends StatelessWidget {
   final VoidCallback onDelete;
 
   const _TodoCard({
+    super.key,
     required this.todo,
     required this.isCurrent,
     required this.onToggle,

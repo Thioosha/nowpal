@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/todo_provider.dart';
+import '../providers/planned_session_provider.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int) onSwitchTab;
@@ -452,6 +454,140 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
+              ),
+
+              const SizedBox(height: 12),
+              Consumer<PlannedSessionProvider>(
+                builder: (context, provider, _) {
+                  final now = DateTime.now();
+                  final upcoming =
+                      provider.sessions
+                          .where((s) => !s.completed && s.dateTime.isAfter(now))
+                          .toList()
+                        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+
+                  if (upcoming.isEmpty) {
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF8F5FF),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.event_busy_rounded,
+                                  color: Color(0xFFB0A0CC),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'No upcoming sessions',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  Text(
+                                    'Plan one from the Focus tab',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => widget.onSwitchTab(1),
+                              child: Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final next = upcoming.first;
+
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF8F5FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.event_rounded,
+                                color: Color(0xFF7C5CBF),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Next session',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat(
+                                    'EEE, MMM d • HH:mm',
+                                  ).format(next.dateTime),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF3D2B6B),
+                                  ),
+                                ),
+                                Text(
+                                  '${next.durationMinutes}min'
+                                  '${next.strictMode ? ' • Strict mode' : ''}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => widget.onSwitchTab(1),
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: const Color(0xFF7C5CBF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
