@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
 import 'active_session_screen.dart';
+import '../models/planned_session.dart';
+import '../providers/planned_session_provider.dart';
+import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
+import '../services/alarm_service.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -49,6 +54,207 @@ class _FocusScreenState extends State<FocusScreen> {
     if (result != null) {
       setState(() => _focusMinutes = result);
     }
+  }
+
+  void _openPlanDialog() async {
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.now();
+    int duration = 25;
+    bool strict = false;
+    final presets = [15, 25, 45, 60];
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text('Plan a session'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // date picker
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.calendar_today_rounded,
+                        color: Color(0xFF7C5CBF),
+                      ),
+                      title: Text(
+                        DateFormat('EEE, MMM d').format(selectedDate),
+                      ),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
+                    // time picker
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.access_time_rounded,
+                        color: Color(0xFF7C5CBF),
+                      ),
+                      title: Text(selectedTime.format(context)),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime,
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedTime = picked);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Duration',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ...presets.map(
+                          (min) => _DurationChip(
+                            label: '${min}m',
+                            selected: duration == min,
+                            onTap: () => setDialogState(() => duration = min),
+                          ),
+                        ),
+                        _DurationChip(
+                          label: presets.contains(duration)
+                              ? 'Custom'
+                              : '${duration}m',
+                          selected: !presets.contains(duration),
+                          onTap: () async {
+                            final controller = TextEditingController(
+                              text: '$duration',
+                            );
+                            final result = await showDialog<int>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                title: const Text('Custom duration'),
+                                content: TextField(
+                                  controller: controller,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    suffixText: 'minutes',
+                                  ),
+                                  autofocus: true,
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      final value = int.tryParse(
+                                        controller.text,
+                                      );
+                                      if (value != null && value > 0) {
+                                        Navigator.pop(context, value);
+                                      }
+                                    },
+                                    child: const Text('Set'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (result != null) {
+                              setDialogState(() => duration = result);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Strict mode',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      value: strict,
+                      onChanged: (v) => setDialogState(() => strict = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final dateTime = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                      selectedTime.hour,
+                      selectedTime.minute,
+                    );
+
+                    final session = PlannedSession(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      dateTime: dateTime,
+                      durationMinutes: duration,
+                      strictMode: strict,
+                    );
+
+                    context.read<PlannedSessionProvider>().addSession(session);
+
+                    final alarmId = session.id.hashCode;
+
+                    if (strict) {
+                      await scheduleStrictAlarm(
+                        id: alarmId,
+                        scheduledTime: dateTime,
+                        focusMinutes: duration,
+                        breakMinutes: 5,
+                      );
+                    } else {
+                      await NotificationService.scheduleReminder(
+                        id: alarmId,
+                        scheduledTime: dateTime,
+                        title: 'Time to focus! 🎯',
+                        body: 'Your $duration min session is starting now',
+                      );
+                    }
+
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Plan it'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _startSession() {
@@ -180,42 +386,133 @@ class _FocusScreenState extends State<FocusScreen> {
             ),
 
             const SizedBox(height: 24),
-            Text(
-              'Planned sessions',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[500],
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Planned sessions',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[500],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _openPlanDialog,
+                  child: Row(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F5FF),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text('📅', style: TextStyle(fontSize: 28)),
-                        ),
+                      Icon(
+                        Icons.add_circle_rounded,
+                        size: 16,
+                        color: const Color(0xFF7C5CBF),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(width: 4),
                       Text(
-                        'No sessions planned yet',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        'Plan',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF7C5CBF),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Consumer<PlannedSessionProvider>(
+              builder: (context, provider, _) {
+                final upcoming = provider.upcoming;
+                if (upcoming.isEmpty) {
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF8F5FF),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  '📅',
+                                  style: TextStyle(fontSize: 28),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'No sessions planned yet',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: upcoming.map((session) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: Card(
+                        child: ListTile(
+                          leading: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF8F5FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.event_rounded,
+                                color: Color(0xFF7C5CBF),
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            DateFormat(
+                              'EEE, MMM d • HH:mm',
+                            ).format(session.dateTime),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${session.durationMinutes}min'
+                            '${session.strictMode ? ' • Strict mode' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: Colors.grey[400],
+                            ),
+                            onPressed: () => context
+                                .read<PlannedSessionProvider>()
+                                .deleteSession(session.id),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
             ),
           ],
         ),

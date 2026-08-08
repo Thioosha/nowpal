@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'screens/main_shell.dart';
 import 'providers/todo_provider.dart';
+import 'providers/planned_session_provider.dart';
 import 'widgets/overlay_widget.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AndroidAlarmManager.initialize();
+  await NotificationService.init();
+  // await NotificationService.showTestNotification(); // TEMP TEST
+  // await NotificationService.cancelAll(); // TEMP: clear stale test schedules
   runApp(const NowPalApp());
 }
 
@@ -20,8 +28,11 @@ class NowPalApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TodoProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => TodoProvider()),
+        ChangeNotifierProvider(create: (_) => PlannedSessionProvider()),
+      ],
       child: MaterialApp(
         title: 'NowPal',
         debugShowCheckedModeBanner: false,
