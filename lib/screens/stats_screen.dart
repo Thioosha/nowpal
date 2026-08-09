@@ -40,6 +40,12 @@ class StatsScreenState extends State<StatsScreen> {
     return total;
   }
 
+  int get _completedSessionsCount {
+    return _focusSessions
+        .where((e) => e.split('|').length > 2 && e.split('|')[2] == 'true')
+        .length;
+  }
+
   Map<String, String> get _moodByDate {
     final map = <String, String>{};
     for (final entry in _moodHistory) {
@@ -97,7 +103,7 @@ class StatsScreenState extends State<StatsScreen> {
                 Expanded(
                   child: _StatCard(
                     label: 'Sessions completed',
-                    value: '${_focusSessions.length}',
+                    value: '$_completedSessionsCount',
                     icon: Icons.timer_rounded,
                   ),
                 ),

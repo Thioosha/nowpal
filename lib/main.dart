@@ -7,6 +7,7 @@ import 'providers/todo_provider.dart';
 import 'providers/planned_session_provider.dart';
 import 'widgets/overlay_widget.dart';
 import 'services/notification_service.dart';
+import 'services/launch_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -32,7 +33,6 @@ void main() async {
       );
     },
   );
-  // await NotificationService.cancelAll(); // TEMP: clear old stale schedules again
   runApp(const NowPalApp());
 }
 
@@ -43,8 +43,69 @@ void overlayMain() {
   );
 }
 
-class NowPalApp extends StatelessWidget {
+class NowPalApp extends StatefulWidget {
   const NowPalApp({super.key});
+
+  @override
+  State<NowPalApp> createState() => _NowPalAppState();
+}
+
+class _NowPalAppState extends State<NowPalApp> {
+  bool _checked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    LaunchService.listenForNewLaunch((extras) {
+      _launchSession(extras);
+    });
+  }
+
+  Future<void> _init() async {
+    Map<String, dynamic>? extras;
+    try {
+      extras = await LaunchService.getLaunchExtras().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          print('⚠️ getLaunchExtras TIMED OUT');
+          return null;
+        },
+      );
+    } catch (e) {
+      print('⚠️ getLaunchExtras ERROR: $e');
+    }
+
+    setState(() => _checked = true);
+
+    if (extras != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _launchSession(extras!);
+      });
+    }
+  }
+
+  void _launchSession(Map<String, dynamic> extras) async {
+    final result = await navigatorKey.currentState?.push<bool>(
+      MaterialPageRoute(
+        builder: (context) => ActiveSessionScreen(
+          focusMinutes: extras['focusMinutes'],
+          breakMinutes: extras['breakMinutes'],
+          strictMode: true,
+        ),
+      ),
+    );
+    final sessionId = extras['sessionId'] as String?;
+    if (result == true && sessionId != null && sessionId.isNotEmpty) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        Provider.of<PlannedSessionProvider>(
+          ctx,
+          listen: false,
+        ).markCompleted(sessionId);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,11 +115,13 @@ class NowPalApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PlannedSessionProvider()),
       ],
       child: MaterialApp(
-        navigatorKey: navigatorKey, // NEW
+        navigatorKey: navigatorKey,
         title: 'NowPal',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
-        home: const MainShell(),
+        home: !_checked
+            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+            : const MainShell(),
       ),
     );
   }

@@ -50,6 +50,9 @@ class TodoProvider extends ChangeNotifier {
   void toggleDone(String id) {
     final todo = _todos.firstWhere((t) => t.id == id);
     todo.isDone = !todo.isDone;
+    if (todo.isDone && _currentTaskId == id) {
+      _currentTaskId = null; // clear current task if it just got completed
+    }
     _saveTodos();
     notifyListeners();
   }

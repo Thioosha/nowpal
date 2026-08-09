@@ -271,6 +271,7 @@ class _FocusScreenState extends State<FocusScreen> {
                         scheduledTime: dateTime,
                         focusMinutes: duration,
                         breakMinutes: 5,
+                        sessionId: session.id,
                       );
                     } else {
                       await NotificationService.scheduleReminder(

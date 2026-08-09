@@ -74,7 +74,9 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final parts = s.split('|');
       if (parts[0] == today) {
         totalMin += int.tryParse(parts[1]) ?? 0;
-        sessionCount++;
+        if (parts.length > 2 && parts[2] == 'true') {
+          sessionCount++;
+        }
       }
     }
 

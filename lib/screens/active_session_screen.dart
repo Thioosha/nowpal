@@ -29,6 +29,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
   int _secondsFocused = 0;
   bool _isRunning = false;
   bool _isBreak = false;
+  bool _focusCompletedNaturally = false;
 
   final AudioPlayer _sfxPlayer = AudioPlayer();
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -128,9 +129,10 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
       final sessionsRaw = prefs.getStringList('focus_sessions') ?? [];
       final today = DateTime.now().toIso8601String().substring(0, 10);
       final minutesFocused = (_secondsFocused / 60).round();
-      sessionsRaw.add('$today|$minutesFocused');
+      sessionsRaw.add('$today|$minutesFocused|true'); // natural completion
       await prefs.setStringList('focus_sessions', sessionsRaw);
-      _secondsFocused = 0; // reset after logging
+      _secondsFocused = 0;
+      _focusCompletedNaturally = true;
     }
 
     setState(() {
@@ -156,11 +158,11 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
       final sessionsRaw = prefs.getStringList('focus_sessions') ?? [];
       final today = DateTime.now().toIso8601String().substring(0, 10);
       final minutesFocused = (_secondsFocused / 60).round();
-      sessionsRaw.add('$today|$minutesFocused');
+      sessionsRaw.add('$today|$minutesFocused|false'); // interrupted
       await prefs.setStringList('focus_sessions', sessionsRaw);
     }
 
-    if (mounted) Navigator.pop(context);
+    if (mounted) Navigator.pop(context, _focusCompletedNaturally);
   }
 
   @override
@@ -187,34 +189,25 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        color: const Color(0xFF3D2B6B),
-                        onPressed: (!widget.strictMode || _isBreak)
-                            ? _endSession
-                            : null,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          color: const Color(0xFF3D2B6B),
+                          onPressed: (!widget.strictMode || _isBreak)
+                              ? _endSession
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.checklist_rounded),
+                          color: const Color(0xFF3D2B6B),
+                          onPressed: _openTodoSheet,
+                        ),
+                      ],
                     ),
                     const Spacer(),
-                    if (currentTask != null) ...[
-                      Text(
-                        'Working on',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        currentTask.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF3D2B6B),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+
                     Text(
                       _isBreak ? 'Break time 🌿' : 'Focus time 🎯',
                       style: const TextStyle(
@@ -233,6 +226,26 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
                         fit: BoxFit.contain,
                       ),
                     ),
+
+                    const SizedBox(height: 12),
+                    if (currentTask != null) ...[
+                      Text(
+                        'Working on',
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currentTask.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF3D2B6B),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+
                     const SizedBox(height: 12),
                     Text(
                       _formatTime(_secondsLeft),
@@ -242,6 +255,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
                         color: Color(0xFF3D2B6B),
                       ),
                     ),
+
                     const Spacer(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -351,6 +365,158 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
           ),
         ),
       ),
+    );
+  }
+
+  void _openTodoSheet() {
+    final controller = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true, // NEW — lets sheet resize with keyboard
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(
+              context,
+            ).viewInsets.bottom, // NEW — avoids keyboard overlap
+          ),
+          child: Consumer<TodoProvider>(
+            builder: (context, todoProvider, _) {
+              final pending = todoProvider.todos
+                  .where((t) => !t.isDone)
+                  .toList();
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your tasks',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF3D2B6B),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            decoration: const InputDecoration(
+                              hintText: 'Add a task...',
+                              isDense: true,
+                            ),
+                            onSubmitted: (value) {
+                              if (value.trim().isNotEmpty) {
+                                todoProvider.addTodo(value.trim());
+                                controller.clear();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_rounded,
+                            color: Color(0xFF7C5CBF),
+                          ),
+                          onPressed: () {
+                            if (controller.text.trim().isNotEmpty) {
+                              todoProvider.addTodo(controller.text.trim());
+                              controller.clear();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (pending.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: Text(
+                            'No pending tasks 🎉',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.4,
+                        ),
+                        child: ReorderableListView(
+                          shrinkWrap: true,
+                          proxyDecorator: (child, index, animation) {
+                            return Material(
+                              color: Colors.transparent,
+                              child: child,
+                            );
+                          },
+                          onReorder: (oldIndex, newIndex) {
+                            final ids = pending.map((t) => t.id).toList();
+                            todoProvider.reorderTodos(oldIndex, newIndex, ids);
+                          },
+                          children: pending.map((todo) {
+                            final isCurrent =
+                                todoProvider.currentTask?.id == todo.id;
+                            return ListTile(
+                              key: ValueKey(
+                                todo.id,
+                              ), // required for ReorderableListView
+                              contentPadding: EdgeInsets.zero,
+                              leading: GestureDetector(
+                                onTap: () => todoProvider.toggleDone(todo.id),
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFFB0A0CC),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                todo.title,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(
+                                  isCurrent
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  color: isCurrent
+                                      ? Colors.amber
+                                      : Colors.grey[400],
+                                ),
+                                onPressed: () => todoProvider.setCurrentTask(
+                                  isCurrent ? null : todo.id,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
