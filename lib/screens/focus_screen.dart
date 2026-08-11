@@ -257,6 +257,9 @@ class _FocusScreenState extends State<FocusScreen> {
                       await NotificationService.cancelReminder(
                         existing.id.hashCode,
                       );
+                      await NotificationService.cancelReminder(
+                        existing.id.hashCode + 1,
+                      ); // NEW
                     } else {
                       context.read<PlannedSessionProvider>().addSession(
                         session,
@@ -264,6 +267,20 @@ class _FocusScreenState extends State<FocusScreen> {
                     }
 
                     final alarmId = session.id.hashCode;
+                    final headsUpTime = dateTime.subtract(
+                      const Duration(minutes: 5),
+                    );
+
+                    // 5-min heads up (only if it's still in the future)
+                    if (headsUpTime.isAfter(DateTime.now())) {
+                      await NotificationService.scheduleReminder(
+                        id: alarmId + 1,
+                        scheduledTime: headsUpTime,
+                        title: 'Starting soon ⏰',
+                        body: 'Your ${duration}min session starts in 5 minutes',
+                        payload: 'headsup',
+                      );
+                    }
 
                     if (strict) {
                       await scheduleStrictAlarm(
@@ -279,8 +296,7 @@ class _FocusScreenState extends State<FocusScreen> {
                         scheduledTime: dateTime,
                         title: 'Time to focus! 🎯',
                         body: 'Your $duration min session is starting now',
-                        payload:
-                            '$duration|5|$strict', // NEW: focusMin|breakMin|strict
+                        payload: '$duration|5|$strict',
                       );
                     }
 

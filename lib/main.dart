@@ -16,8 +16,8 @@ void main() async {
   await AndroidAlarmManager.initialize();
   await NotificationService.init(
     onNotificationTap: (payload) {
-      if (payload == null) return;
-      final parts = payload.split('|'); // "focusMinutes|breakMinutes|strict"
+      if (payload == null || payload == 'headsup') return; // NEW guard
+      final parts = payload.split('|');
       final focusMin = int.tryParse(parts[0]) ?? 25;
       final breakMin = int.tryParse(parts[1]) ?? 5;
       final strict = parts[2] == 'true';
