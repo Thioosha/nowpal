@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">NowPal uses this to detect when you leave the app during a strict focus session, so it can bring you back and keep you accountable.</string>
+</resources>

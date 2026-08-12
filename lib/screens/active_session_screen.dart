@@ -50,6 +50,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
     _secondsLeft = widget.focusMinutes * 60;
     WidgetsBinding.instance.addObserver(this);
     _requestPermissionIfNeeded();
+    if (widget.strictMode) _setStrictActive(true); // NEW
   }
 
   Future<void> _requestPermissionIfNeeded() async {
@@ -60,6 +61,11 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
       }
     }
     _startTimer();
+  }
+
+  Future<void> _setStrictActive(bool active) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('strict_session_active', active);
   }
 
   Future<void> _playSound(String assetPath) async {
@@ -141,6 +147,10 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
           ? widget.breakMinutes * 60
           : widget.focusMinutes * 60;
     });
+    if (_isBreak)
+      await _setStrictActive(false); // NEW — safe to leave during break
+    if (!_isBreak)
+      await _setStrictActive(true); // NEW — back to strict when focus resumes
     _startTimer();
   }
 
@@ -152,6 +162,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen>
 
   void _endSession() async {
     _timer?.cancel();
+    await _setStrictActive(false);
 
     if (_secondsFocused > 0 && !_isBreak) {
       final prefs = await SharedPreferences.getInstance();
