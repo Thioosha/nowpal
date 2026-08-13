@@ -2,6 +2,7 @@ package com.example.nowpal
 
 import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -15,10 +16,10 @@ class MainActivity : FlutterActivity() {
 
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         methodChannel?.setMethodCallHandler { call, result ->
-            if (call.method == "getLaunchExtrasextractExtras(intent: Intent?)") {
-                result.success(extractExtras(intent))
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "getLaunchExtras" -> result.success(extractExtras(intent))
+                "isAccessibilityEnabled" -> result.success(isAccessibilityServiceEnabled())
+                else -> result.notImplemented()
             }
         }
     }
@@ -42,5 +43,14 @@ class MainActivity : FlutterActivity() {
                 "sessionId" to (extras.getString("sessionId") ?: "")
             )
         } else null
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expectedComponentName = "$packageName/$packageName.AppBlockerAccessibilityService"
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return enabledServices.contains(expectedComponentName)
     }
 }

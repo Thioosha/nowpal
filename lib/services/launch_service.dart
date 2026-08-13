@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:android_intent_plus/android_intent.dart';
 
 class LaunchService {
   static const _channel = MethodChannel('com.example.nowpal/launch');
@@ -17,5 +18,17 @@ class LaunchService {
         onNewLaunch(Map<String, dynamic>.from(call.arguments));
       }
     });
+  }
+
+  static Future<bool> isAccessibilityEnabled() async {
+    final result = await _channel.invokeMethod('isAccessibilityEnabled');
+    return result == true;
+  }
+
+  static Future<void> openAccessibilitySettings() async {
+    final intent = AndroidIntent(
+      action: 'android.settings.ACCESSIBILITY_SETTINGS',
+    );
+    await intent.launch();
   }
 }

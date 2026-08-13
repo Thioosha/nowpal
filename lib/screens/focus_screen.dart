@@ -7,6 +7,7 @@ import '../providers/planned_session_provider.dart';
 import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
 import '../services/alarm_service.dart';
+import '../services/launch_service.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -42,6 +43,38 @@ class _FocusScreenState extends State<FocusScreen> {
     if (mounted) {
       context.read<PlannedSessionProvider>().deleteSession(session.id);
     }
+  }
+
+  Future<bool> _ensureAccessibilityEnabled() async {
+    final enabled = await LaunchService.isAccessibilityEnabled();
+    if (enabled) return true;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Enable Accessibility'),
+        content: const Text(
+          'Strict mode needs Accessibility access to stop you from escaping into Settings during a session. '
+          'You\'ll be taken to Settings — find NowPal and turn it on, then come back.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      await LaunchService.openAccessibilitySettings();
+    }
+    return false; // don't auto-enable the toggle yet; let them come back and try again
   }
 
   void _pickCustomDuration() async {
@@ -226,7 +259,13 @@ class _FocusScreenState extends State<FocusScreen> {
                         style: TextStyle(fontSize: 14),
                       ),
                       value: strict,
-                      onChanged: (v) => setDialogState(() => strict = v),
+                      onChanged: (v) async {
+                        if (v) {
+                          final ok = await _ensureAccessibilityEnabled();
+                          if (!ok) return;
+                        }
+                        setDialogState(() => strict = v);
+                      },
                     ),
                   ],
                 ),
@@ -428,7 +467,14 @@ class _FocusScreenState extends State<FocusScreen> {
                           ),
                         ),
                         value: _strictMode,
-                        onChanged: (v) => setState(() => _strictMode = v),
+                        onChanged: (v) async {
+                          if (v) {
+                            final ok = await _ensureAccessibilityEnabled();
+                            if (!ok)
+                              return; // don't flip the switch, user needs to grant first
+                          }
+                          setState(() => _strictMode = v);
+                        },
                       ),
                     ),
                     const SizedBox(height: 16),
