@@ -11,9 +11,7 @@ class NotificationService {
   }) async {
     tzdata.initializeTimeZones();
 
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+    const androidSettings = AndroidInitializationSettings('ic_notification');
     const settings = InitializationSettings(android: androidSettings);
 
     await _plugin.initialize(

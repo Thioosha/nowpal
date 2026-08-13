@@ -22,6 +22,7 @@ class _FocusScreenState extends State<FocusScreen> {
   final List<int> _presets = [15, 25, 45, 60];
 
   void _startPlannedSession(PlannedSession session) async {
+    context.read<PlannedSessionProvider>().deleteSession(session.id);
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -32,9 +33,14 @@ class _FocusScreenState extends State<FocusScreen> {
         ),
       ),
     );
-    // when we return from the session, mark it completed
+  }
+
+  void _deletePlannedSession(PlannedSession session) async {
+    final alarmId = session.id.hashCode;
+    await NotificationService.cancelReminder(alarmId);
+    await NotificationService.cancelReminder(alarmId + 1);
     if (mounted) {
-      context.read<PlannedSessionProvider>().markCompleted(session.id);
+      context.read<PlannedSessionProvider>().deleteSession(session.id);
     }
   }
 
@@ -296,7 +302,7 @@ class _FocusScreenState extends State<FocusScreen> {
                         scheduledTime: dateTime,
                         title: 'Time to focus! 🎯',
                         body: 'Your $duration min session is starting now',
-                        payload: '$duration|5|$strict',
+                        payload: '$duration|5|$strict|${session.id}',
                       );
                     }
 
@@ -540,9 +546,7 @@ class _FocusScreenState extends State<FocusScreen> {
                         isMissed: false,
                         onStart: () => _startPlannedSession(s),
                         onEdit: () => _openPlanDialog(existing: s),
-                        onDelete: () => context
-                            .read<PlannedSessionProvider>()
-                            .deleteSession(s.id),
+                        onDelete: () => _deletePlannedSession(s),
                       ),
                     ),
                     if (missed.isNotEmpty) ...[
@@ -562,9 +566,7 @@ class _FocusScreenState extends State<FocusScreen> {
                           isMissed: true,
                           onStart: () => _startPlannedSession(s),
                           onEdit: () => _openPlanDialog(existing: s),
-                          onDelete: () => context
-                              .read<PlannedSessionProvider>()
-                              .deleteSession(s.id),
+                          onDelete: () => _deletePlannedSession(s),
                         ),
                       ),
                     ],

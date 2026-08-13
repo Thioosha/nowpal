@@ -16,11 +16,22 @@ void main() async {
   await AndroidAlarmManager.initialize();
   await NotificationService.init(
     onNotificationTap: (payload) {
-      if (payload == null || payload == 'headsup') return; // NEW guard
+      if (payload == null || payload == 'headsup') return;
       final parts = payload.split('|');
       final focusMin = int.tryParse(parts[0]) ?? 25;
       final breakMin = int.tryParse(parts[1]) ?? 5;
       final strict = parts[2] == 'true';
+      final sessionId = parts.length > 3 ? parts[3] : null;
+
+      if (sessionId != null && sessionId.isNotEmpty) {
+        final ctx = navigatorKey.currentContext;
+        if (ctx != null) {
+          Provider.of<PlannedSessionProvider>(
+            ctx,
+            listen: false,
+          ).deleteSession(sessionId);
+        }
+      }
 
       navigatorKey.currentState?.push(
         MaterialPageRoute(
@@ -86,7 +97,17 @@ class _NowPalAppState extends State<NowPalApp> {
   }
 
   void _launchSession(Map<String, dynamic> extras) async {
-    final result = await navigatorKey.currentState?.push<bool>(
+    final sessionId = extras['sessionId'] as String?;
+    if (sessionId != null && sessionId.isNotEmpty) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        Provider.of<PlannedSessionProvider>(
+          ctx,
+          listen: false,
+        ).deleteSession(sessionId);
+      }
+    }
+    await navigatorKey.currentState?.push<bool>(
       MaterialPageRoute(
         builder: (context) => ActiveSessionScreen(
           focusMinutes: extras['focusMinutes'],
@@ -95,16 +116,6 @@ class _NowPalAppState extends State<NowPalApp> {
         ),
       ),
     );
-    final sessionId = extras['sessionId'] as String?;
-    if (result == true && sessionId != null && sessionId.isNotEmpty) {
-      final ctx = navigatorKey.currentContext;
-      if (ctx != null) {
-        Provider.of<PlannedSessionProvider>(
-          ctx,
-          listen: false,
-        ).markCompleted(sessionId);
-      }
-    }
   }
 
   @override
