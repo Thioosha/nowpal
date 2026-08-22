@@ -674,8 +674,5 @@ class _BearPainter extends CustomPainter {
   }
 
   @override
-  bool shouldReclip(CustomPainter oldDelegate) => false;
-
-  @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
