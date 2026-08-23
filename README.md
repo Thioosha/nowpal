@@ -1,8 +1,10 @@
 # NowPal : Battre la procrastination, une session à la fois
 
-NowPal est une application mobile Android développée avec Flutter, pensée pour les étudiants qui ont du mal à rester concentrés. Son principe central : le **mode strict**, une fois une session lancée, l'application te bloque activement et t'empêche de t'échapper vers les réseaux sociaux, les paramètres ou n'importe quelle autre distraction. Pas de négociation, pas de raccourci.
+NowPal est une application mobile Android développée avec Flutter, pensée pour les étudiants qui procrastinent les sessions d'étude et ont du mal à rester concentrés. Elle s'attaque à un problème concret : **la facilité avec laquelle on repousse une session de travail** pour aller sur les réseaux sociaux ou dans n'importe quelle autre distraction.
 
-Le reste (minuteur Pomodoro, planification de sessions, liste de tâches, suivi de l'humeur, statistiques) vient en support de cette idée centrale : créer un environnement où la seule option viable, c'est de travailler.
+Son principe central est le **mode strict** — une fois une session lancée, un overlay système bloque toute navigation hors de l'application, et un service d'accessibilité empêche même l'accès aux Paramètres Android pour désactiver les permissions. Pas de négociation, pas de raccourci.
+
+Le reste (minuteur Pomodoro, planification de sessions, liste de tâches, suivi de l'humeur, statistiques) vient en support de cette idée centrale : créer un environnement où la seule option viable, c'est de respecter ses engagements et travailler.
 
 ---
 
